@@ -1,0 +1,146 @@
+.family-tree-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+.canvas-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  border: 2px solid #3498db;
+  border-radius: 10px;
+  background-color: #f8f9fa;
+  background-image: 
+    linear-gradient(rgba(52, 152, 219, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(52, 152, 219, 0.1) 1px, transparent 1px);
+  background-size: 20px 20px;
+  cursor: grab;
+  min-height: 500px;
+}
+
+.canvas-container:active {
+  cursor: grabbing;
+}
+
+.canvas {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.1s ease;
+}
+
+.connection-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.family-member {
+  position: absolute;
+  background-color: white;
+  border-radius: 8px;
+  padding: 15px;
+  min-width: 150px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+  cursor: grab;
+  transition: all 0.3s ease;
+  z-index: 10;
+  border: 2px solid #3498db;
+}
+
+.family-member:hover {
+  transform: translate(-50%, -50%) scale(1.05);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  z-index: 20;
+}
+
+.family-member.selected {
+  border-color: #e74c3c;
+  border-width: 3px;
+  background-color: #fff8f8;
+}
+
+.family-member:active {
+  cursor: grabbing;
+}
+
+.member-header {
+  font-weight: bold;
+  font-size: 18px;
+  color: #2c3e50;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.member-name {
+  font-weight: bold;
+}
+
+.member-birth {
+  font-weight: normal;
+  font-size: 14px;
+  color: #7f8c8d;
+}
+
+.member-details {
+  font-size: 14px;
+  color: #34495e;
+  line-height: 1.4;
+  margin-bottom: 5px;
+}
+
+.member-id {
+  font-size: 12px;
+  color: #95a5a6;
+  text-align: right;
+  font-style: italic;
+}
+
+.selected-info {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(231, 76, 60, 0.9);
+  color: white;
+  padding: 10px 20px;
+  border-radius: 5px;
+  z-index: 100;
+  font-weight: bold;
+}
+
+/* Reszponzív stílusok */
+@media (max-width: 768px) {
+  .controls {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .controls button {
+    width: 100%;
+    max-width: 300px;
+  }
+  
+  .zoom-controls {
+    order: -1;
+    margin-bottom: 10px;
+  }
+  
+  .family-member {
+    min-width: 120px;
+    padding: 10px;
+  }
+  
+  .member-header {
+    font-size: 16px;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
