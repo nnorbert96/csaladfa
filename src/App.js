@@ -75,7 +75,7 @@ function App() {
       birthYear: '1940', 
       deathYear: '',
       gender: 'male',
-      details: 'Családfő', 
+      details: '', // Üres, mivel ezt nem jelenítjük meg
       x: 500, 
       y: 100,
       isDeceased: false
@@ -87,7 +87,7 @@ function App() {
       birthYear: '1945', 
       deathYear: '2020',
       gender: 'female',
-      details: 'Nagymama', 
+      details: '', // Üres, mivel ezt nem jelenítjük meg
       x: 700, 
       y: 100,
       isDeceased: true
@@ -99,7 +99,7 @@ function App() {
       birthYear: '1970', 
       deathYear: '',
       gender: 'male',
-      details: 'Mérnök', 
+      details: '', // Üres, mivel ezt nem jelenítjük meg
       x: 400, 
       y: 250,
       isDeceased: false
@@ -111,7 +111,7 @@ function App() {
       birthYear: '1972', 
       deathYear: '',
       gender: 'female',
-      details: 'Tanár', 
+      details: '', // Üres, mivel ezt nem jelenítjük meg
       x: 600, 
       y: 250,
       isDeceased: false
@@ -123,7 +123,7 @@ function App() {
       birthYear: '2000', 
       deathYear: '',
       gender: 'male',
-      details: 'Egyetemista', 
+      details: '', // Üres, mivel ezt nem jelenítjük meg
       x: 400, 
       y: 400,
       isDeceased: false
@@ -146,17 +146,26 @@ function App() {
   const [infoOpen, setInfoOpen] = useState(false);
   const [addMemberDialog, setAddMemberDialog] = useState(false);
   const [editMemberDialog, setEditMemberDialog] = useState(false);
-  const [siblingDialog, setSiblingDialog] = useState({ open: false, member1: null, member2: null, commonParents: [] });
+  const [siblingDialog, setSiblingDialog] = useState({ 
+    open: false, 
+    member1: null, 
+    member2: null, 
+    commonParents: [],
+    fatherName: '',
+    motherName: '',
+    siblingName: ''
+  });
   const [newMember, setNewMember] = useState({ 
     name: '', 
     maidenName: '',
     birthYear: '', 
     deathYear: '',
     gender: 'male',
-    details: '',
+    details: '', // Üres, mivel ezt nem jelenítjük meg
     isDeceased: false,
     fatherId: '',
     motherId: '',
+    siblingId: '',
     spouseId: ''
   });
   const [editingMember, setEditingMember] = useState(null);
@@ -213,7 +222,40 @@ function App() {
       width: newSize, 
       height: newSize 
     });
+    
+    // Ütközésmentesség ellenőrzése
+    if (members.length > 0) {
+      const adjustedMembers = checkForOverlap(members);
+      setMembers(adjustedMembers);
+    }
   }, [members.length]);
+  
+  // Ütközésmentesség ellenőrzése
+  const checkForOverlap = (memberList) => {
+    const adjustedMembers = [...memberList];
+    const minDistance = 100; // Minimális távolság a tagok között
+    
+    for (let i = 0; i < adjustedMembers.length; i++) {
+      for (let j = i + 1; j < adjustedMembers.length; j++) {
+        const dx = adjustedMembers[i].x - adjustedMembers[j].x;
+        const dy = adjustedMembers[i].y - adjustedMembers[j].y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < minDistance) {
+          // Ha túl közel vannak, mozdítsuk el őket
+          const angle = Math.atan2(dy, dx);
+          const pushDistance = (minDistance - distance) / scale;
+          
+          adjustedMembers[i].x += Math.cos(angle) * pushDistance / 2;
+          adjustedMembers[i].y += Math.sin(angle) * pushDistance / 2;
+          adjustedMembers[j].x -= Math.cos(angle) * pushDistance / 2;
+          adjustedMembers[j].y -= Math.sin(angle) * pushDistance / 2;
+        }
+      }
+    }
+    
+    return adjustedMembers;
+  };
   
   // Billentyűzet események
   useEffect(() => {
@@ -221,7 +263,6 @@ function App() {
       keysPressed.current.add(e.key);
       if (e.key === 'Shift') {
         shiftPressed.current = true;
-        // Shift lenyomásakor állítsuk be a crosshair kurzort
         if (containerRef.current && !isPanning) {
           containerRef.current.style.cursor = 'crosshair';
         }
@@ -232,7 +273,6 @@ function App() {
       keysPressed.current.delete(e.key);
       if (e.key === 'Shift') {
         shiftPressed.current = false;
-        // Shift elengedésekor NE töröljük a kijelölést, csak állítsuk vissza a kurzort
         if (containerRef.current) {
           containerRef.current.style.cursor = isPanning ? 'grabbing' : 'grab';
         }
@@ -248,25 +288,60 @@ function App() {
     };
   }, [isPanning]);
   
-  // Kapcsolatok rajzolása
+  // Kapcsolatok rajzolása - OPTIMALIZÁLT
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !containerRef.current) return;
     
     const ctx = canvas.getContext('2d');
-    
-    // Canvas méret beállítás - használjuk a konténer méretét
     const container = containerRef.current;
-    canvas.width = container.clientWidth;
-    canvas.height = container.clientHeight;
     
-    // Törlés
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Csak akkor méretezzük újra, ha megváltozott
+    if (canvas.width !== container.clientWidth || canvas.height !== container.clientHeight) {
+      canvas.width = container.clientWidth;
+      canvas.height = container.clientHeight;
+    }
     
-    // Grid rajzolása
-    drawGrid(ctx, canvas.width, canvas.height);
+    // Több rajzolási művelet egy requestAnimationFrame-ben
+    const drawFrame = () => {
+      // Törlés
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Grid rajzolása
+      drawGrid(ctx, canvas.width, canvas.height);
+      
+      // Kapcsolatok rajzolása
+      drawConnections(ctx);
+    };
     
-    // Kapcsolatok rajzolása
+    requestAnimationFrame(drawFrame);
+  }, [members, connections, scale, panOffset]);
+  
+  // Grid rajzolása - JAVÍTVA
+  const drawGrid = (ctx, width, height) => {
+    const gridSize = 50 * scale;
+    ctx.strokeStyle = 'rgba(52, 152, 219, 0.1)';
+    ctx.lineWidth = 1;
+    
+    // Függőleges vonalak
+    for (let x = (panOffset.x % gridSize); x < width; x += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    }
+    
+    // Vízszintes vonalak - JAVÍTVA
+    for (let y = (panOffset.y % gridSize); y < height; y += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);  // Javítva: width, y (nem width, height)
+      ctx.stroke();
+    }
+  };
+  
+  // Kapcsolatok rajzolása - Külön függvénybe szervezve
+  const drawConnections = (ctx) => {
     connections.forEach(conn => {
       const from = members.find(m => m.id === conn.from);
       const to = members.find(m => m.id === conn.to);
@@ -302,7 +377,7 @@ function App() {
       
       // Nyíl a kapcsolat típusától függően
       if (conn.type === 'szülő') {
-        drawArrow(ctx, fromX, fromY, toX, toY, false, Math.max(0.5, scale));
+        drawArrow(ctx, fromX, fromY, toX, toY, Math.max(0.5, scale));
       }
       
       // Kapcsolat típus felirat
@@ -323,7 +398,27 @@ function App() {
       ctx.textBaseline = 'middle';
       ctx.fillText(conn.type, midX, midY);
     });
-  }, [members, connections, scale, panOffset]);
+  };
+  
+  // Nyíl rajzolása
+  const drawArrow = (ctx, fromX, fromY, toX, toY, arrowScale) => {
+    const headlen = 15 * arrowScale;
+    const angle = Math.atan2(toY - fromY, toX - fromX);
+    
+    // Nyílfej
+    ctx.beginPath();
+    ctx.moveTo(toX, toY);
+    ctx.lineTo(
+      toX - headlen * Math.cos(angle - Math.PI / 6),
+      toY - headlen * Math.sin(angle - Math.PI / 6)
+    );
+    ctx.moveTo(toX, toY);
+    ctx.lineTo(
+      toX - headlen * Math.cos(angle + Math.PI / 6),
+      toY - headlen * Math.sin(angle + Math.PI / 6)
+    );
+    ctx.stroke();
+  };
   
   // Selection rectangle rajzolása
   useEffect(() => {
@@ -375,51 +470,8 @@ function App() {
     }
   }, [selectionRect, selectedMembers]);
   
-  // Grid rajzolása
-  const drawGrid = (ctx, width, height) => {
-    const gridSize = 50 * scale;
-    ctx.strokeStyle = 'rgba(52, 152, 219, 0.1)';
-    ctx.lineWidth = 1;
-    
-    // Függőleges vonalak
-    for (let x = (panOffset.x % gridSize); x < width; x += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, height);
-      ctx.stroke();
-    }
-    
-    // Vízszintes vonalak
-    for (let y = (panOffset.y % gridSize); y < height; y += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(width, height);
-      ctx.stroke();
-    }
-  };
-  
-  // Nyíl rajzolása
-  const drawArrow = (ctx, fromX, fromY, toX, toY, reverse = false, arrowScale) => {
-    const headlen = 15 * arrowScale;
-    const angle = Math.atan2(toY - fromY, toX - fromX);
-    
-    // Nyílfej
-    ctx.beginPath();
-    ctx.moveTo(toX, toY);
-    ctx.lineTo(
-      toX - headlen * Math.cos(angle - Math.PI / 6),
-      toY - headlen * Math.sin(angle - Math.PI / 6)
-    );
-    ctx.moveTo(toX, toY);
-    ctx.lineTo(
-      toX - headlen * Math.cos(angle + Math.PI / 6),
-      toY - headlen * Math.sin(angle + Math.PI / 6)
-    );
-    ctx.stroke();
-  };
-  
   // Szülők lekérése egy taghoz
-  const getParents = (memberId) => {
+  const getParents = useCallback((memberId) => {
     const parentConnections = connections.filter(
       conn => conn.to === memberId && conn.type === 'szülő'
     );
@@ -438,10 +490,10 @@ function App() {
       father: father ? father.from : null,
       mother: mother ? mother.from : null
     };
-  };
+  }, [connections, members]);
   
   // Házastárs lekérése egy taghoz
-  const getSpouse = (memberId) => {
+  const getSpouse = useCallback((memberId) => {
     const marriageConnections = connections.filter(
       conn => conn.type === 'házasság' && 
       (conn.from === memberId || conn.to === memberId)
@@ -454,14 +506,13 @@ function App() {
     }
     
     return null;
-  };
+  }, [connections, members]);
   
   // Testvérek keresése egy taghoz
-  const findSiblings = (memberId) => {
+  const findSiblings = useCallback((memberId) => {
     const parents = getParents(memberId);
     if (!parents.father && !parents.mother) return [];
     
-    // Gyűjtsük össze az összes gyermeket akiknek ugyanazok a szülei
     const siblings = members.filter(member => {
       if (member.id === memberId) return false;
       
@@ -473,58 +524,53 @@ function App() {
     });
     
     return siblings;
-  };
+  }, [getParents, members]);
   
-  // Tag méretének kiszámítása dinamikusan a tartalom és zoom alapján
+  // Tag méretének kiszámítása dinamikusan a tartalom és zoom alapján - ARÁNYOS
   const calculateMemberSize = useCallback((member, currentScale) => {
     // Alapméret a zoom alapján - ARÁNYOS a zoommal
-    const baseSize = 120 * currentScale;
+    const baseWidth = 160 * currentScale;
+    const baseHeight = 100 * currentScale;
     
-    // Szöveg hossza alapján méret
-    const nameLength = member.name.length;
-    const maidenNameLength = member.maidenName ? member.maidenName.length : 0;
+    // Minimális méretek
+    const minWidth = 140 * currentScale;
+    const minHeight = 90 * currentScale;
     
-    // Szülők nevei
-    const parents = getParents(member.id);
-    const father = parents.father ? members.find(m => m.id === parents.father) : null;
-    const mother = parents.mother ? members.find(m => m.id === parents.mother) : null;
-    
-    // Házastárs neve
-    const spouse = getSpouse(member.id);
-    
-    // Szélesség számítás - arányos a zoommal
-    const minWidth = 180 * currentScale;
-    const widthFactor = 7 * currentScale;
-    const calculatedWidth = Math.max(
-      minWidth, 
-      baseSize + (nameLength * widthFactor) + (maidenNameLength * widthFactor * 0.7)
+    // Dinamikus méret a név hossza alapján
+    const nameLength = member.name.length + (member.maidenName ? member.maidenName.length : 0);
+    const contentWidth = Math.max(
+      minWidth,
+      baseWidth + (nameLength * 2 * currentScale)
     );
     
-    // Magasság számítás - arányos a zoommal
-    const minHeight = 140 * currentScale;
-    const lineHeight = 24 * currentScale;
-    const lines = 3 + (member.maidenName ? 0.5 : 0) + (member.details ? 1 : 0) + (member.isDeceased ? 0.5 : 0) + ((father || mother) ? 1 : 0) + (spouse ? 1 : 0);
-    const calculatedHeight = Math.max(
-      minHeight, 
-      baseSize + (lines * lineHeight)
+    // Magasság számítása
+    const lines = 2; // Név + születési év (ha elhunyt, akkor +1 sor)
+    const contentHeight = Math.max(
+      minHeight,
+      baseHeight + (lines * 15 * currentScale)
     );
     
     return {
-      width: calculatedWidth,
-      height: calculatedHeight
+      width: contentWidth,
+      height: contentHeight
     };
-  }, [members, connections]);
+  }, []);
   
   // Tag betűmérete a zoomhoz - ARÁNYOS
-  const calculateFontSize = (currentScale) => {
+  const calculateFontSize = useCallback((currentScale) => {
     const baseFontSize = 14;
     return Math.max(10, baseFontSize * currentScale);
-  };
+  }, []);
   
   // Új tag hozzáadása
   const handleAddMember = () => {
     if (!newMember.name.trim()) {
       showNotification('Add meg a nevet!', 'warning');
+      return;
+    }
+    
+    if (!newMember.birthYear.trim()) {
+      showNotification('Add meg a születési évet!', 'warning');
       return;
     }
     
@@ -554,13 +600,15 @@ function App() {
       birthYear: newMember.birthYear,
       deathYear: newMember.isDeceased ? newMember.deathYear : '',
       gender: newMember.gender,
-      details: newMember.details,
+      details: '', // Üres, mivel ezt nem jelenítjük meg
       isDeceased: newMember.isDeceased,
       x: newX,
       y: newY
     };
     
-    setMembers([...members, newMemberObj]);
+    const updatedMembers = [...members, newMemberObj];
+    const adjustedMembers = checkForOverlap(updatedMembers);
+    setMembers(adjustedMembers);
     
     // Kapcsolatok létrehozása
     const newConnections = [];
@@ -582,6 +630,16 @@ function App() {
         from: parseInt(newMember.motherId),
         to: newId,
         type: 'szülő'
+      });
+    }
+    
+    // Testvér kapcsolat létrehozása
+    if (newMember.siblingId) {
+      newConnections.push({
+        id: connectionId++,
+        from: newId,
+        to: parseInt(newMember.siblingId),
+        type: 'testvér'
       });
     }
     
@@ -612,10 +670,11 @@ function App() {
       birthYear: '', 
       deathYear: '',
       gender: 'male',
-      details: '',
+      details: '', // Üres, mivel ezt nem jelenítjük meg
       isDeceased: false,
       fatherId: '',
       motherId: '',
+      siblingId: '',
       spouseId: ''
     });
     
@@ -631,14 +690,22 @@ function App() {
       return;
     }
     
+    if (!editingMember.birthYear.trim()) {
+      showNotification('Add meg a születési évet!', 'warning');
+      return;
+    }
+    
     // Frissítsük a tagot
-    setMembers(members.map(member => 
+    const updatedMembers = members.map(member => 
       member.id === editingMember.id ? editingMember : member
-    ));
+    );
+    const adjustedMembers = checkForOverlap(updatedMembers);
+    setMembers(adjustedMembers);
     
     // Szülői kapcsolatok frissítése
     const fatherId = editingMember.fatherId ? parseInt(editingMember.fatherId) : null;
     const motherId = editingMember.motherId ? parseInt(editingMember.motherId) : null;
+    const siblingId = editingMember.siblingId ? parseInt(editingMember.siblingId) : null;
     
     // Töröljük a régi szülői kapcsolatokat
     let filteredConnections = connections.filter(conn => 
@@ -648,6 +715,12 @@ function App() {
     // Töröljük a régi házastársi kapcsolatokat is
     filteredConnections = filteredConnections.filter(conn => 
       !(conn.type === 'házasság' && 
+        (conn.from === editingMember.id || conn.to === editingMember.id))
+    );
+    
+    // Töröljük a régi testvér kapcsolatokat is
+    filteredConnections = filteredConnections.filter(conn => 
+      !(conn.type === 'testvér' && 
         (conn.from === editingMember.id || conn.to === editingMember.id))
     );
     
@@ -671,6 +744,16 @@ function App() {
         from: motherId,
         to: editingMember.id,
         type: 'szülő'
+      });
+    }
+    
+    // Testvér kapcsolat
+    if (siblingId) {
+      newConnections.push({
+        id: connectionId++,
+        from: editingMember.id,
+        to: siblingId,
+        type: 'testvér'
       });
     }
     
@@ -701,7 +784,6 @@ function App() {
   
   // Testvér kapcsolat ellenőrzése
   const checkForSiblings = (newMemberId, fatherId, motherId) => {
-    // Keressük az összes gyermeket akiknek ugyanazok a szülei
     const siblings = members.filter(member => {
       if (member.id === newMemberId) return false;
       
@@ -715,7 +797,6 @@ function App() {
     
     // Hozzunk létre testvéri kapcsolatokat
     siblings.forEach(sibling => {
-      // Ellenőrizzük, hogy már létezik-e a kapcsolat
       const alreadyExists = connections.some(conn => 
         conn.type === 'testvér' && 
         ((conn.from === newMemberId && conn.to === sibling.id) || 
@@ -754,39 +835,12 @@ function App() {
     }
   };
   
-  // Házastársi kapcsolat ellenőrzése és létrehozása
-  const checkForSpouse = (member1Id, member2Id) => {
-    // Ellenőrizzük, hogy már létezik-e a kapcsolat
-    const alreadyExists = connections.some(conn => 
-      conn.type === 'házasság' && 
-      ((conn.from === member1Id && conn.to === member2Id) || 
-       (conn.from === member2Id && conn.to === member1Id))
-    );
-    
-    if (!alreadyExists) {
-      const newConnection = {
-        id: connections.length > 0 ? Math.max(...connections.map(c => c.id)) + 1 : 1,
-        from: member1Id,
-        to: member2Id,
-        type: 'házasság'
-      };
-      
-      setConnections([...connections, newConnection]);
-      
-      const member1Name = members.find(m => m.id === member1Id)?.name;
-      const member2Name = members.find(m => m.id === member2Id)?.name;
-      
-      showNotification(`Házastársi kapcsolat létrehozva: ${member1Name} ↔ ${member2Name}`, 'success');
-    }
-  };
-  
   // Testvér kapcsolat létrehozása
   const handleCreateSiblingConnection = () => {
     const { member1, member2, commonParents } = siblingDialog;
     
     if (!member1 || !member2) return;
     
-    // Ellenőrizzük, hogy már létezik-e a kapcsolat
     const alreadyExists = connections.some(conn => 
       conn.type === 'testvér' && 
       ((conn.from === member1 && conn.to === member2) || 
@@ -809,7 +863,15 @@ function App() {
       showNotification(`Testvéri kapcsolat létrehozva: ${member1Name} ↔ ${member2Name}`, 'success');
     }
     
-    setSiblingDialog({ open: false, member1: null, member2: null, commonParents: [] });
+    setSiblingDialog({ 
+      open: false, 
+      member1: null, 
+      member2: null, 
+      commonParents: [],
+      fatherName: '',
+      motherName: '',
+      siblingName: ''
+    });
   };
   
   // Tag törlése
@@ -834,12 +896,14 @@ function App() {
   // Tag szerkesztés megnyitása
   const handleEditMemberOpen = (member) => {
     const parents = getParents(member.id);
+    const siblings = findSiblings(member.id);
     const spouse = getSpouse(member.id);
     
     setEditingMember({
       ...member,
       fatherId: parents.father ? parents.father.toString() : '',
       motherId: parents.mother ? parents.mother.toString() : '',
+      siblingId: siblings.length > 0 ? siblings[0].id.toString() : '',
       spouseId: spouse ? spouse.id.toString() : ''
     });
     setEditMemberDialog(true);
@@ -848,22 +912,18 @@ function App() {
   
   // Húzás kezdete egy tagra
   const handleDragStart = (memberId, clientX, clientY) => {
-    // Ha van már kijelölt tag, és ez a tag is kijelölt, akkor több tagot húzunk
     if (selectedMembers.has(memberId) && selectedMembers.size > 1) {
       isDraggingRef.current = true;
       dragMemberIdRef.current = 'multiple';
       dragStartRef.current = { x: clientX, y: clientY };
     } 
-    // Ha Shift nincs lenyomva, csak egy tagot mozgathatunk
     else if (!shiftPressed.current) {
       isDraggingRef.current = true;
       dragMemberIdRef.current = memberId;
       dragStartRef.current = { x: clientX, y: clientY };
       setSelectedMember(memberId);
-      // Egy tag kiválasztásakor töröljük a többi kiválasztást
       setSelectedMembers(new Set([memberId]));
     }
-    // Ha Shift lenyomva, csak kijelöljük, nem kezdünk húzást
   };
 
   // Egér mozgás
@@ -896,7 +956,6 @@ function App() {
         const memberY = (member.y * scale) + panOffset.y;
         const size = calculateMemberSize(member, scale);
         
-        // Ellenőrizzük, hogy a tag középpontja a kijelölésben van-e
         if (memberX >= x1 && memberX <= x2 && memberY >= y1 && memberY <= y2) {
           newSelected.add(member.id);
         }
@@ -937,12 +996,11 @@ function App() {
       dragStartRef.current = { x: e.clientX, y: e.clientY };
     }
     
-    // Panoráma - LASSÍTVA
+    // Panoráma
     if (isPanning) {
       const dx = e.clientX - panStart.x;
       const dy = e.clientY - panStart.y;
       
-      // Nagyon lassú, sima mozgás
       const smoothFactor = 0.3;
       setPanOffset(prev => ({
         x: prev.x + dx * smoothFactor,
@@ -964,12 +1022,17 @@ function App() {
       setSelectionRect(null);
       selectionStartRef.current = null;
       
-      // Ha van kijelölt tag, értesítsük a felhasználót
       if (selectedMembers.size > 0) {
         showNotification(`${selectedMembers.size} tag kiválasztva`, 'info');
       }
     }
-  }, [isSelecting, selectedMembers]);
+    
+    // Ütközésmentesség ellenőrzése húzás után
+    const adjustedMembers = checkForOverlap(members);
+    if (JSON.stringify(adjustedMembers) !== JSON.stringify(members)) {
+      setMembers(adjustedMembers);
+    }
+  }, [isSelecting, selectedMembers, members]);
 
   // Egér lenyomása
   const handleMouseDown = useCallback((e) => {
@@ -983,11 +1046,8 @@ function App() {
       const startX = e.clientX - rect.left;
       const startY = e.clientY - rect.top;
       
-      // Ellenőrizzük, hogy egy tagra kattintottunk-e
       const clickedOnMember = e.target.closest('.family-member');
       if (clickedOnMember) {
-        // Ha tagra kattintottunk Shift-tel, akkor csak hozzáadjuk a kijelöléshez
-        // A kijelölés kezelése a handleMemberClick függvényben történik
         return;
       }
       
@@ -1000,7 +1060,6 @@ function App() {
         endY: startY
       });
       
-      // Töröljük a korábbi kijelöléseket CSAK ha nem Shift+klikkel választottunk már ki tagokat
       if (selectedMembers.size === 0) {
         setSelectedMembers(new Set());
         setSelectedMember(null);
@@ -1014,7 +1073,6 @@ function App() {
       setIsPanning(true);
       setPanStart({ x: e.clientX, y: e.clientY });
       
-      // Állítsuk be a grabbing kurzort
       if (containerRef.current) {
         containerRef.current.style.cursor = 'grabbing';
       }
@@ -1025,7 +1083,6 @@ function App() {
   const handlePanEnd = () => {
     setIsPanning(false);
     
-    // Visszaállítjuk a kurzort
     if (containerRef.current) {
       if (shiftPressed.current) {
         containerRef.current.style.cursor = 'crosshair';
@@ -1041,7 +1098,6 @@ function App() {
     const zoomFactor = 0.1;
     const delta = e.deltaY > 0 ? 1 - zoomFactor : 1 + zoomFactor;
     
-    // Kurzor pozíciójához relatív zoom
     const container = containerRef.current;
     if (!container) return;
     
@@ -1049,10 +1105,8 @@ function App() {
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
     
-    // Számoljuk ki az új skálát
     const newScale = Math.max(0.1, Math.min(5, scale * delta));
     
-    // Számoljuk ki az új offsetet a kurzor pozíciójának megtartásához
     const scaleRatio = newScale / scale;
     setPanOffset(prev => ({
       x: mouseX - (mouseX - prev.x) * scaleRatio,
@@ -1079,7 +1133,6 @@ function App() {
     const rect = container.getBoundingClientRect();
     const padding = 100;
     
-    // Számold ki a tagok határait
     const minX = Math.min(...members.map(m => m.x));
     const maxX = Math.max(...members.map(m => m.x));
     const minY = Math.min(...members.map(m => m.y));
@@ -1092,7 +1145,6 @@ function App() {
     const scaleY = (rect.height - padding * 2) / contentHeight;
     const newScale = Math.min(scaleX, scaleY, 1);
     
-    // Középre igazítás
     const centerX = (minX + maxX) / 2;
     const centerY = (minY + maxY) / 2;
     
@@ -1115,7 +1167,7 @@ function App() {
         birthYear: '1940', 
         deathYear: '',
         gender: 'male',
-        details: 'Családfő', 
+        details: '', // Üres, mivel ezt nem jelenítjük meg
         x: 500, 
         y: 100,
         isDeceased: false
@@ -1127,7 +1179,7 @@ function App() {
         birthYear: '1945', 
         deathYear: '2020',
         gender: 'female',
-        details: 'Nagymama', 
+        details: '', // Üres, mivel ezt nem jelenítjük meg
         x: 700, 
         y: 100,
         isDeceased: true
@@ -1139,7 +1191,7 @@ function App() {
         birthYear: '1970', 
         deathYear: '',
         gender: 'male',
-        details: 'Mérnök', 
+        details: '', // Üres, mivel ezt nem jelenítjük meg
         x: 400, 
         y: 250,
         isDeceased: false
@@ -1151,7 +1203,7 @@ function App() {
         birthYear: '1972', 
         deathYear: '',
         gender: 'female',
-        details: 'Tanár', 
+        details: '', // Üres, mivel ezt nem jelenítjük meg
         x: 600, 
         y: 250,
         isDeceased: false
@@ -1163,7 +1215,7 @@ function App() {
         birthYear: '2000', 
         deathYear: '',
         gender: 'male',
-        details: 'Egyetemista', 
+        details: '', // Üres, mivel ezt nem jelenítjük meg
         x: 400, 
         y: 400,
         isDeceased: false
@@ -1175,7 +1227,7 @@ function App() {
         birthYear: '2005', 
         deathYear: '',
         gender: 'female',
-        details: 'Középiskolás', 
+        details: '', // Üres, mivel ezt nem jelenítjük meg
         x: 600, 
         y: 400,
         isDeceased: false
@@ -1193,7 +1245,8 @@ function App() {
       { id: 8, from: 4, to: 6, type: 'szülő' },
     ];
     
-    setMembers(exampleMembers);
+    const adjustedMembers = checkForOverlap(exampleMembers);
+    setMembers(adjustedMembers);
     setConnections(exampleConnections);
     setSelectedMembers(new Set());
     setSelectedMember(null);
@@ -1290,7 +1343,6 @@ function App() {
     lastClickTimeRef.current = now;
     
     if (isDoubleClick) {
-      // Dupla kattintás: szerkesztés
       const member = members.find(m => m.id === memberId);
       if (member) {
         handleEditMemberOpen(member);
@@ -1312,12 +1364,10 @@ function App() {
       setSelectedMembers(newSelected);
       setSelectedMember(newSelected.size === 1 ? memberId : null);
       
-      // Ha több tag van kijelölve, értesítsük a felhasználót
       if (newSelected.size > 1) {
         showNotification(`${newSelected.size} tag kiválasztva`, 'info');
       }
     } else {
-      // Egyébként csak egy tagot választunk ki
       setSelectedMember(memberId);
       setSelectedMembers(new Set([memberId]));
     }
@@ -1325,7 +1375,6 @@ function App() {
 
   // Vászonra kattintás (kijelölés törlése)
   const handleCanvasClick = (e) => {
-    // Ha nem egy tagra kattintottunk, és nem Shift módban vagyunk, töröljük a kijelölést
     if (!e.target.closest('.family-member') && !shiftPressed.current) {
       setSelectedMembers(new Set());
       setSelectedMember(null);
@@ -1364,228 +1413,251 @@ function App() {
     return !spouse && member.id !== editingMember?.id;
   });
 
+  // Függőleges téglalap alakú adatlap stílus
+  const verticalFormStyle = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '16px',
+    width: '100%',
+    maxHeight: '70vh',
+    overflowY: 'auto',
+    padding: '8px',
+  };
+
+  // Függőleges kapcsolat sor stílus
+  const relationshipRowStyle = {
+    marginBottom: '16px',
+    padding: '12px',
+    borderRadius: '8px',
+    backgroundColor: '#f5f5f5',
+    border: '1px solid #e0e0e0',
+  };
+
   return (
     <div className="App">
-      {/* Oldalsó menü */}
+      {/* Oldalsó menü - JAVÍTVA: PaperProps helyett Box */}
       <Drawer
         anchor="left"
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        PaperProps={{
-          sx: {
+      >
+        <Box
+          sx={{
             width: 350,
             backgroundColor: '#1a2530',
             color: 'white',
-            padding: '25px'
-          }
-        }}
-      >
-        <div className="sidebar-header">
-          <h2><FamilyRestroom /> Családfa</h2>
-          <IconButton onClick={() => setDrawerOpen(false)} sx={{ color: 'white' }}>
-            <Close />
-          </IconButton>
-        </div>
-        
-        <div className="sidebar-content">
-          <div className="sidebar-section">
-            <h3><Settings /> Nézet</h3>
-            <div className="zoom-controls">
-              <IconButton 
-                onClick={() => setScale(s => Math.max(0.1, s - 0.1))}
-                sx={{ color: 'white' }}
-              >
-                <ZoomOut />
-              </IconButton>
-              <div className="zoom-display">
-                <span>{Math.round(scale * 100)}%</span>
-                <div className="zoom-factor">
-                  Méret tényező: {scale.toFixed(2)}
+            padding: '25px',
+            height: '100%',
+            overflowY: 'auto'
+          }}
+        >
+          <div className="sidebar-header">
+            <h2><FamilyRestroom /> Családfa</h2>
+            <IconButton onClick={() => setDrawerOpen(false)} sx={{ color: 'white' }}>
+              <Close />
+            </IconButton>
+          </div>
+          
+          <div className="sidebar-content">
+            <div className="sidebar-section">
+              <h3><Settings /> Nézet</h3>
+              <div className="zoom-controls">
+                <IconButton 
+                  onClick={() => setScale(s => Math.max(0.1, s - 0.1))}
+                  sx={{ color: 'white' }}
+                >
+                  <ZoomOut />
+                </IconButton>
+                <div className="zoom-display">
+                  <span>{Math.round(scale * 100)}%</span>
+                  <div className="zoom-factor">
+                    Méret tényező: {scale.toFixed(2)}
+                  </div>
+                </div>
+                <IconButton 
+                  onClick={() => setScale(s => Math.min(5, s + 0.1))}
+                  sx={{ color: 'white' }}
+                >
+                  <ZoomIn />
+                </IconButton>
+              </div>
+              
+              <div className="zoom-slider">
+                <Slider
+                  value={scale}
+                  onChange={(e, newValue) => setScale(newValue)}
+                  min={0.1}
+                  max={3}
+                  step={0.1}
+                  valueLabelDisplay="auto"
+                  valueLabelFormat={(value) => `${Math.round(value * 100)}%`}
+                  sx={{ color: '#3498db' }}
+                />
+              </div>
+              
+              <div className="view-buttons">
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  onClick={handleResetView}
+                  sx={{ mt: 1, mb: 1, color: 'white', borderColor: 'white' }}
+                  startIcon={<Home />}
+                >
+                  Alaphelyzet
+                </Button>
+                <Button
+                  variant="outlined"
+                  fullWidth
+                  onClick={handleFitToScreen}
+                  sx={{ color: 'white', borderColor: 'white' }}
+                  startIcon={<ZoomOutMap />}
+                >
+                  Ablakhoz igazítás
+                </Button>
+              </div>
+            </div>
+            
+            <div className="sidebar-section">
+              <h3>🎮 Billentyűzet vezérlés</h3>
+              <div className="keyboard-controls">
+                <div className="keyboard-row">
+                  <IconButton 
+                    onClick={() => handleKeyboardPan('up')}
+                    sx={{ color: 'white', backgroundColor: 'rgba(255,255,255,0.1)' }}
+                  >
+                    <KeyboardArrowUp />
+                  </IconButton>
+                </div>
+                <div className="keyboard-row">
+                  <IconButton 
+                    onClick={() => handleKeyboardPan('left')}
+                    sx={{ color: 'white', backgroundColor: 'rgba(255,255,255,0.1)' }}
+                  >
+                    <KeyboardArrowLeft />
+                  </IconButton>
+                  <IconButton 
+                    onClick={() => handleKeyboardPan('down')}
+                    sx={{ color: 'white', backgroundColor: 'rgba(255,255,255,0.1)' }}
+                  >
+                    <KeyboardArrowDown />
+                  </IconButton>
+                  <IconButton 
+                    onClick={() => handleKeyboardPan('right')}
+                    sx={{ color: 'white', backgroundColor: 'rgba(255,255,255,0.1)' }}
+                  >
+                    <KeyboardArrowRight />
+                  </IconButton>
                 </div>
               </div>
-              <IconButton 
-                onClick={() => setScale(s => Math.min(5, s + 0.1))}
-                sx={{ color: 'white' }}
-              >
-                <ZoomIn />
-              </IconButton>
+              <p className="keyboard-info">Nyilak: vászon mozgatása</p>
+              <p className="keyboard-info" style={{ color: '#2ecc71', marginTop: '5px' }}>
+                Shift + bal klikk: Több tag kijelölése
+              </p>
+              <p className="keyboard-info" style={{ color: '#e67e22', marginTop: '5px' }}>
+                Dupla klikk: Tag szerkesztése
+              </p>
             </div>
             
-            <div className="zoom-slider">
-              <Slider
-                value={scale}
-                onChange={(e, newValue) => setScale(newValue)}
-                min={0.1}
-                max={3}
-                step={0.1}
-                valueLabelDisplay="auto"
-                valueLabelFormat={(value) => `${Math.round(value * 100)}%`}
-                sx={{ color: '#3498db' }}
-              />
-            </div>
-            
-            <div className="view-buttons">
-              <Button
-                variant="outlined"
-                fullWidth
-                onClick={handleResetView}
-                sx={{ mt: 1, mb: 1, color: 'white', borderColor: 'white' }}
-                startIcon={<Home />}
-              >
-                Alaphelyzet
-              </Button>
-              <Button
-                variant="outlined"
-                fullWidth
-                onClick={handleFitToScreen}
-                sx={{ color: 'white', borderColor: 'white' }}
-                startIcon={<ZoomOutMap />}
-              >
-                Ablakhoz igazítás
-              </Button>
-            </div>
-          </div>
-          
-          <div className="sidebar-section">
-            <h3>🎮 Billentyűzet vezérlés</h3>
-            <div className="keyboard-controls">
-              <div className="keyboard-row">
-                <IconButton 
-                  onClick={() => handleKeyboardPan('up')}
-                  sx={{ color: 'white', backgroundColor: 'rgba(255,255,255,0.1)' }}
-                >
-                  <KeyboardArrowUp />
-                </IconButton>
-              </div>
-              <div className="keyboard-row">
-                <IconButton 
-                  onClick={() => handleKeyboardPan('left')}
-                  sx={{ color: 'white', backgroundColor: 'rgba(255,255,255,0.1)' }}
-                >
-                  <KeyboardArrowLeft />
-                </IconButton>
-                <IconButton 
-                  onClick={() => handleKeyboardPan('down')}
-                  sx={{ color: 'white', backgroundColor: 'rgba(255,255,255,0.1)' }}
-                >
-                  <KeyboardArrowDown />
-                </IconButton>
-                <IconButton 
-                  onClick={() => handleKeyboardPan('right')}
-                  sx={{ color: 'white', backgroundColor: 'rgba(255,255,255,0.1)' }}
-                >
-                  <KeyboardArrowRight />
-                </IconButton>
-              </div>
-            </div>
-            <p className="keyboard-info">Nyilak: vászon mozgatása</p>
-            <p className="keyboard-info" style={{ color: '#2ecc71', marginTop: '5px' }}>
-              Shift + bal klikk: Több tag kijelölése
-            </p>
-            <p className="keyboard-info" style={{ color: '#e67e22', marginTop: '5px' }}>
-              Dupla klikk: Tag szerkesztése
-            </p>
-          </div>
-          
-          <div className="sidebar-section">
-            <h3><Expand /> Vászon méret</h3>
-            <p>Szélesség: {Math.round(canvasSize.width)}px</p>
-            <p>Magasság: {Math.round(canvasSize.height)}px</p>
-            <p>Növekedési tényező: 1.5ˣ</p>
-            <Chip 
-              label={`${members.length} tag`} 
-              color="primary" 
-              size="small"
-              sx={{ mt: 1 }}
-            />
-            {selectedMembers.size > 0 && (
+            <div className="sidebar-section">
+              <h3><Expand /> Vászon méret</h3>
+              <p>Szélesség: {Math.round(canvasSize.width)}px</p>
+              <p>Magasság: {Math.round(canvasSize.height)}px</p>
+              <p>Növekedési tényező: 1.5ˣ</p>
               <Chip 
-                label={`${selectedMembers.size} kiválasztva`} 
-                color="success" 
+                label={`${members.length} tag`} 
+                color="primary" 
                 size="small"
-                sx={{ mt: 1, ml: 1 }}
+                sx={{ mt: 1 }}
               />
-            )}
-          </div>
-          
-          <div className="sidebar-section">
-            <h3>📊 Statisztika</h3>
-            <div className="stats">
-              <div className="stat-item">
-                <span className="stat-label">Családtagok:</span>
-                <span className="stat-value">{members.length}</span>
+              {selectedMembers.size > 0 && (
+                <Chip 
+                  label={`${selectedMembers.size} kiválasztva`} 
+                  color="success" 
+                  size="small"
+                  sx={{ mt: 1, ml: 1 }}
+                />
+              )}
+            </div>
+            
+            <div className="sidebar-section">
+              <h3>📊 Statisztika</h3>
+              <div className="stats">
+                <div className="stat-item">
+                  <span className="stat-label">Családtagok:</span>
+                  <span className="stat-value">{members.length}</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-label">Kapcsolatok:</span>
+                  <span className="stat-value">{connections.length}</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-label">Házasságok:</span>
+                  <span className="stat-value">
+                    {connections.filter(c => c.type === 'házasság').length}
+                  </span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-label">Kijelölt:</span>
+                  <span className="stat-value">
+                    {selectedMembers.size > 0 ? `${selectedMembers.size} tag` : 
+                     selectedMember ? members.find(m => m.id === selectedMember)?.name : 'nincs'}
+                  </span>
+                </div>
               </div>
-              <div className="stat-item">
-                <span className="stat-label">Kapcsolatok:</span>
-                <span className="stat-value">{connections.length}</span>
-              </div>
-              <div className="stat-item">
-                <span className="stat-label">Házasságok:</span>
-                <span className="stat-value">
-                  {connections.filter(c => c.type === 'házasság').length}
-                </span>
-              </div>
-              <div className="stat-item">
-                <span className="stat-label">Kijelölt:</span>
-                <span className="stat-value">
-                  {selectedMembers.size > 0 ? `${selectedMembers.size} tag` : 
-                   selectedMember ? members.find(m => m.id === selectedMember)?.name : 'nincs'}
-                </span>
+            </div>
+            
+            <div className="sidebar-section">
+              <h3><Delete /> Adatkezelés</h3>
+              <Button
+                variant="contained"
+                color="primary"
+                fullWidth
+                onClick={loadExample}
+                sx={{ mb: 1 }}
+              >
+                Példa betöltése
+              </Button>
+              <Button
+                variant="contained"
+                color="error"
+                fullWidth
+                onClick={clearAll}
+              >
+                Minden törlése
+              </Button>
+            </div>
+            
+            <div className="sidebar-section">
+              <h3>🎮 Új Vezérlés</h3>
+              <div className="controls-list">
+                <div className="control-item">
+                  <DragIndicator /> Húzd a tagokat
+                </div>
+                <div className="control-item">
+                  <span style={{color: '#2ecc71'}}>⇧ Shift + bal klikk:</span> Több tag kijelölése
+                </div>
+                <div className="control-item">
+                  <span style={{color: '#2ecc71'}}>⇧ Shift + húzás:</span> Téglalap kijelölés
+                </div>
+                <div className="control-item">
+                  🖱️ Jobb klikk + húzás: LASSÚ panoráma
+                </div>
+                <div className="control-item">
+                  🔍 Görgő: Zoom (dinamikus, arányos)
+                </div>
+                <div className="control-item">
+                  🏷️ Dupla klikk: Szerkesztés
+                </div>
+                <div className="control-item">
+                  ❌ Kereszt ikon: Törlés
+                </div>
+                <div className="control-item">
+                  <Favorite /> Házastárs hozzáadása
+                </div>
               </div>
             </div>
           </div>
-          
-          <div className="sidebar-section">
-            <h3><Delete /> Adatkezelés</h3>
-            <Button
-              variant="contained"
-              color="primary"
-              fullWidth
-              onClick={loadExample}
-              sx={{ mb: 1 }}
-            >
-              Példa betöltése
-            </Button>
-            <Button
-              variant="contained"
-              color="error"
-              fullWidth
-              onClick={clearAll}
-            >
-              Minden törlése
-            </Button>
-          </div>
-          
-          <div className="sidebar-section">
-            <h3>🎮 Új Vezérlés</h3>
-            <div className="controls-list">
-              <div className="control-item">
-                <DragIndicator /> Húzd a tagokat
-              </div>
-              <div className="control-item">
-                <span style={{color: '#2ecc71'}}>⇧ Shift + bal klikk:</span> Több tag kijelölése
-              </div>
-              <div className="control-item">
-                <span style={{color: '#2ecc71'}}>⇧ Shift + húzás:</span> Téglalap kijelölés
-              </div>
-              <div className="control-item">
-                🖱️ Jobb klikk + húzás: LASSÚ panoráma
-              </div>
-              <div className="control-item">
-                🔍 Görgő: Zoom (dinamikus, arányos)
-              </div>
-              <div className="control-item">
-                🏷️ Dupla klikk: Szerkesztés
-              </div>
-              <div className="control-item">
-                ❌ Kereszt ikon: Törlés
-              </div>
-              <div className="control-item">
-                <Favorite /> Házastárs hozzáadása
-              </div>
-            </div>
-          </div>
-        </div>
+        </Box>
       </Drawer>
 
       {/* Felső sáv */}
@@ -1649,18 +1721,10 @@ function App() {
             const fontSize = calculateFontSize(scale);
             const isSelected = selectedMembers.has(member.id) || selectedMember === member.id;
             
-            // Keressük a testvéreket és szülőket
-            const siblings = findSiblings(member.id);
-            const hasSiblings = siblings.length > 0;
-            const parents = getParents(member.id);
-            const father = parents.father ? members.find(m => m.id === parents.father) : null;
-            const mother = parents.mother ? members.find(m => m.id === parents.mother) : null;
-            const spouse = getSpouse(member.id);
-            
             return (
               <div
                 key={member.id}
-                className={`family-member ${isSelected ? 'selected' : ''} ${member.isDeceased ? 'deceased' : ''}`}
+                className={`family-member ${member.gender === 'male' ? 'male' : 'female'} ${isSelected ? 'selected' : ''} ${member.isDeceased ? 'deceased' : ''}`}
                 style={{
                   left: `${(member.x * scale) + panOffset.x}px`,
                   top: `${(member.y * scale) + panOffset.y}px`,
@@ -1669,18 +1733,12 @@ function App() {
                   transform: 'translate(-50%, -50%)',
                   fontSize: `${fontSize}px`,
                   borderRadius: `${Math.min(20, size.width / 15)}px`,
-                  padding: `${Math.min(20, size.width / 20)}px`,
-                  borderColor: member.gender === 'male' ? '#3498db' : 
-                              member.gender === 'female' ? '#e91e63' : '#9b59b6',
-                  backgroundColor: member.isDeceased 
-                    ? (member.gender === 'male' ? 'rgba(52, 152, 219, 0.1)' : 
-                       member.gender === 'female' ? 'rgba(233, 30, 99, 0.1)' : 'rgba(155, 89, 182, 0.1)')
-                    : (member.gender === 'male' ? 'rgba(52, 152, 219, 0.05)' : 
-                       member.gender === 'female' ? 'rgba(233, 30, 99, 0.05)' : 'rgba(155, 89, 182, 0.05)')
+                  padding: `${Math.min(15, size.width / 25)}px`,
+                  borderWidth: `${3 * Math.min(1, scale)}px`,
+                  transformOrigin: 'center center',
                 }}
                 onMouseDown={(e) => {
                   if (e.button === 0) {
-                    // Normál klikk: húzás kezdete
                     handleDragStart(member.id, e.clientX, e.clientY);
                   }
                 }}
@@ -1694,18 +1752,22 @@ function App() {
                     {member.gender === 'male' ? <Male /> : 
                      member.gender === 'female' ? <Female /> : <Transgender />}
                   </div>
+                  
+                  {/* Csak a név */}
                   <div className="member-name">{member.name}</div>
                   
+                  {/* Leánykori név (csak nőknek) */}
                   {member.maidenName && member.gender === 'female' && (
                     <div className="member-maiden-name">
                       szül. {member.maidenName}
                     </div>
                   )}
                   
+                  {/* Születési/halálozási év */}
                   <div className="member-years">
                     {member.isDeceased && member.deathYear ? (
                       <>
-                        <Cake fontSize="inherit" /> {member.birthYear} - <DateRange fontSize="inherit" /> {member.deathYear}
+                        <Cake fontSize="inherit" /> {member.birthYear} - {member.deathYear}
                         <span className="deceased-badge">†</span>
                       </>
                     ) : (
@@ -1714,32 +1776,6 @@ function App() {
                       </>
                     )}
                   </div>
-                  
-                  {(father || mother) && (
-                    <div className="member-parents">
-                      {father && <Man fontSize="inherit" />} {mother && <Woman fontSize="inherit" />}
-                      <span className="parents-text">
-                        {father ? father.name : '?'} & {mother ? mother.name : '?'}
-                      </span>
-                    </div>
-                  )}
-                  
-                  {spouse && (
-                    <div className="member-spouse">
-                      <Favorite fontSize="inherit" />
-                      <span className="spouse-text">
-                        Házastárs: {spouse.name}
-                      </span>
-                    </div>
-                  )}
-                  
-                  {member.details && <div className="member-details">{member.details}</div>}
-                  
-                  {hasSiblings && (
-                    <div className="sibling-info">
-                      <Group fontSize="inherit" /> {siblings.length} testvér
-                    </div>
-                  )}
                   
                   <div className="member-actions">
                     <Tooltip title="Szerkesztés">
@@ -1781,46 +1817,51 @@ function App() {
         </div>
       </div>
 
-      {/* Jobb alsó sarok gombok */}
-      <div className="bottom-right-buttons">
-        <div className="button-stack">
-          <Tooltip title="Új családtag hozzáadása">
-            <IconButton 
-              onClick={() => setAddMemberDialog(true)}
-              sx={{ 
-                backgroundColor: '#2ecc71',
-                color: 'white',
-                width: '60px',
-                height: '60px',
-                marginBottom: '15px',
-                '&:hover': { backgroundColor: '#27ae60' }
-              }}
-            >
-              <Add fontSize="large" />
-            </IconButton>
-          </Tooltip>
-          
-          <Tooltip title="Használati útmutató">
-            <IconButton 
-              onClick={() => setInfoOpen(true)}
-              sx={{ 
-                backgroundColor: '#3498db',
-                color: 'white',
-                width: '60px',
-                height: '60px',
-                '&:hover': { backgroundColor: '#2980b9' }
-              }}
-            >
-              <Info fontSize="large" />
-            </IconButton>
-          </Tooltip>
-        </div>
+      {/* Jobb alsó sarok gombok - Plusz gomb felette, Info alatta */}
+      <div className="floating-buttons-container">
+        <Tooltip title="Új családtag hozzáadása">
+          <IconButton 
+            onClick={() => setAddMemberDialog(true)}
+            className="floating-button"
+            sx={{ 
+              backgroundColor: '#2ecc71',
+              color: 'white',
+              '&:hover': {
+                backgroundColor: '#27ae60',
+                transform: 'scale(1.1)',
+              }
+            }}
+          >
+            <Add fontSize="large" />
+          </IconButton>
+        </Tooltip>
+        
+        <Tooltip title="Használati útmutató">
+          <IconButton 
+            onClick={() => setInfoOpen(true)}
+            className="floating-button"
+            sx={{ 
+              backgroundColor: '#3498db',
+              color: 'white',
+              '&:hover': {
+                backgroundColor: '#2980b9',
+                transform: 'scale(1.1)',
+              }
+            }}
+          >
+            <Info fontSize="large" />
+          </IconButton>
+        </Tooltip>
       </div>
 
-      {/* Új tag dialógus */}
-      <Dialog open={addMemberDialog} onClose={() => setAddMemberDialog(false)} maxWidth="md" fullWidth>
-        <DialogTitle>
-          <PersonAdd /> Új családtag hozzáadása
+      {/* Új tag dialógus - Függőleges téglalap alakú */}
+      <Dialog open={addMemberDialog} onClose={() => setAddMemberDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ 
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          color: 'white',
+          padding: '16px 24px'
+        }}>
+          <PersonAdd sx={{ mr: 1 }} /> Új családtag hozzáadása
         </DialogTitle>
         <DialogContent>
           <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
@@ -1830,8 +1871,8 @@ function App() {
             </Tabs>
           </Box>
           
-          {activeTab === 'basic' && (
-            <div className="dialog-section">
+          <div style={verticalFormStyle}>
+            {activeTab === 'basic' && (
               <Grid container spacing={2}>
                 <Grid item xs={12}>
                   <TextField
@@ -1840,27 +1881,22 @@ function App() {
                     label="Név *"
                     value={newMember.name}
                     onChange={(e) => setNewMember({...newMember, name: e.target.value})}
+                    variant="outlined"
+                    sx={{ mb: 2 }}
                   />
                 </Grid>
                 
                 <Grid item xs={12}>
-                  <FormControl component="fieldset" fullWidth>
-                    <FormLabel component="legend">Nem</FormLabel>
-                    <ToggleButtonGroup
+                  <FormControl fullWidth sx={{ mb: 2 }}>
+                    <InputLabel>Nem</InputLabel>
+                    <Select
                       value={newMember.gender}
-                      exclusive
-                      onChange={handleGenderChange}
-                      aria-label="nem"
-                      fullWidth
-                      sx={{ mt: 1 }}
+                      onChange={(e) => setNewMember({...newMember, gender: e.target.value})}
+                      label="Nem"
                     >
-                      <ToggleButton value="male" aria-label="férfi">
-                        <Male sx={{ mr: 1 }} /> Férfi
-                      </ToggleButton>
-                      <ToggleButton value="female" aria-label="nő">
-                        <Female sx={{ mr: 1 }} /> Nő
-                      </ToggleButton>
-                    </ToggleButtonGroup>
+                      <MenuItem value="male">Férfi</MenuItem>
+                      <MenuItem value="female">Nő</MenuItem>
+                    </Select>
                   </FormControl>
                 </Grid>
                 
@@ -1871,6 +1907,8 @@ function App() {
                       label="Leánykori név"
                       value={newMember.maidenName}
                       onChange={(e) => setNewMember({...newMember, maidenName: e.target.value})}
+                      variant="outlined"
+                      sx={{ mb: 2 }}
                     />
                   </Grid>
                 )}
@@ -1881,6 +1919,8 @@ function App() {
                     label="Születési év *"
                     value={newMember.birthYear}
                     onChange={(e) => setNewMember({...newMember, birthYear: e.target.value})}
+                    variant="outlined"
+                    sx={{ mb: 2 }}
                   />
                 </Grid>
                 
@@ -1894,7 +1934,7 @@ function App() {
                       />
                     }
                     label="Elhunyt"
-                    sx={{ mt: 1 }}
+                    sx={{ mb: 2, mt: 1 }}
                   />
                 </Grid>
                 
@@ -1905,81 +1945,98 @@ function App() {
                       label="Halálozási év"
                       value={newMember.deathYear}
                       onChange={(e) => setNewMember({...newMember, deathYear: e.target.value})}
+                      variant="outlined"
+                      sx={{ mb: 2 }}
                     />
                   </Grid>
                 )}
-                
-                <Grid item xs={12}>
-                  <TextField
-                    fullWidth
-                    label="Részletek"
-                    multiline
-                    rows={2}
-                    value={newMember.details}
-                    onChange={(e) => setNewMember({...newMember, details: e.target.value})}
-                  />
-                </Grid>
               </Grid>
-            </div>
-          )}
-          
-          {activeTab === 'connections' && members.length > 0 && (
-            <div className="dialog-section">
-              <Grid container spacing={3}>
-                <Grid item xs={12}>
-                  <h4>Szülők</h4>
-                  <Grid container spacing={2}>
-                    <Grid item xs={12} sm={6}>
-                      <FormControl fullWidth>
-                        <InputLabel>Apa</InputLabel>
-                        <Select
-                          value={newMember.fatherId}
-                          onChange={(e) => setNewMember({...newMember, fatherId: e.target.value})}
-                          label="Apa"
-                        >
-                          <MenuItem value="">Nincs megadva</MenuItem>
-                          {members
-                            .filter(m => m.gender === 'male')
-                            .map(member => (
-                              <MenuItem key={member.id} value={member.id}>
-                                {member.name} {member.isDeceased ? `(${member.birthYear}†)` : `(${member.birthYear})`}
-                              </MenuItem>
-                            ))}
-                        </Select>
-                      </FormControl>
-                    </Grid>
-                    
-                    <Grid item xs={12} sm={6}>
-                      <FormControl fullWidth>
-                        <InputLabel>Anya</InputLabel>
-                        <Select
-                          value={newMember.motherId}
-                          onChange={(e) => setNewMember({...newMember, motherId: e.target.value})}
-                          label="Anya"
-                        >
-                          <MenuItem value="">Nincs megadva</MenuItem>
-                          {members
-                            .filter(m => m.gender === 'female')
-                            .map(member => (
-                              <MenuItem key={member.id} value={member.id}>
-                                {member.name} {member.isDeceased ? `(${member.birthYear}†)` : `(${member.birthYear})`}
-                              </MenuItem>
-                            ))}
-                        </Select>
-                      </FormControl>
-                    </Grid>
-                  </Grid>
-                </Grid>
+            )}
+            
+            {activeTab === 'connections' && members.length > 0 && (
+              <div className="vertical-connections">
+                <Typography variant="h6" sx={{ mb: 2, color: '#2c3e50' }}>
+                  Kapcsolatok kiválasztása
+                </Typography>
                 
-                <Grid item xs={12}>
-                  <Divider sx={{ my: 2 }} />
-                  <h4>Házastárs</h4>
+                {/* Apa - külön sorban */}
+                <div style={relationshipRowStyle}>
+                  <Typography variant="subtitle1" sx={{ mb: 1, color: '#3498db' }}>
+                    <Man sx={{ mr: 1, verticalAlign: 'middle' }} /> Apa
+                  </Typography>
                   <FormControl fullWidth>
-                    <InputLabel>Házastárs</InputLabel>
+                    <InputLabel>Apa kiválasztása</InputLabel>
+                    <Select
+                      value={newMember.fatherId}
+                      onChange={(e) => setNewMember({...newMember, fatherId: e.target.value})}
+                      label="Apa kiválasztása"
+                    >
+                      <MenuItem value="">Nincs megadva</MenuItem>
+                      {maleMembers.map(member => (
+                        <MenuItem key={member.id} value={member.id}>
+                          {member.name} {member.isDeceased ? `(${member.birthYear}†)` : `(${member.birthYear})`}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </div>
+                
+                {/* Anya - külön sorban */}
+                <div style={relationshipRowStyle}>
+                  <Typography variant="subtitle1" sx={{ mb: 1, color: '#e91e63' }}>
+                    <Woman sx={{ mr: 1, verticalAlign: 'middle' }} /> Anya
+                  </Typography>
+                  <FormControl fullWidth>
+                    <InputLabel>Anya kiválasztása</InputLabel>
+                    <Select
+                      value={newMember.motherId}
+                      onChange={(e) => setNewMember({...newMember, motherId: e.target.value})}
+                      label="Anya kiválasztása"
+                    >
+                      <MenuItem value="">Nincs megadva</MenuItem>
+                      {femaleMembers.map(member => (
+                        <MenuItem key={member.id} value={member.id}>
+                          {member.name} {member.isDeceased ? `(${member.birthYear}†)` : `(${member.birthYear})`}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </div>
+                
+                {/* Testvér - külön sorban */}
+                <div style={relationshipRowStyle}>
+                  <Typography variant="subtitle1" sx={{ mb: 1, color: '#2ecc71' }}>
+                    <Group sx={{ mr: 1, verticalAlign: 'middle' }} /> Testvér
+                  </Typography>
+                  <FormControl fullWidth>
+                    <InputLabel>Testvér kiválasztása</InputLabel>
+                    <Select
+                      value={newMember.siblingId}
+                      onChange={(e) => setNewMember({...newMember, siblingId: e.target.value})}
+                      label="Testvér kiválasztása"
+                    >
+                      <MenuItem value="">Nincs megadva</MenuItem>
+                      {members.map(member => (
+                        <MenuItem key={member.id} value={member.id}>
+                          {member.name} {member.isDeceased ? `(${member.birthYear}†)` : `(${member.birthYear})`}
+                          {member.gender === 'male' ? ' 👨' : ' 👩'}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </div>
+                
+                {/* Házastárs - külön sorban */}
+                <div style={relationshipRowStyle}>
+                  <Typography variant="subtitle1" sx={{ mb: 1, color: '#e74c3c' }}>
+                    <Favorite sx={{ mr: 1, verticalAlign: 'middle' }} /> Házastárs
+                  </Typography>
+                  <FormControl fullWidth>
+                    <InputLabel>Házastárs kiválasztása</InputLabel>
                     <Select
                       value={newMember.spouseId}
                       onChange={(e) => setNewMember({...newMember, spouseId: e.target.value})}
-                      label="Házastárs"
+                      label="Házastárs kiválasztása"
                     >
                       <MenuItem value="">Nincs megadva</MenuItem>
                       {availableSpouses.map(member => (
@@ -1996,36 +2053,15 @@ function App() {
                       ))}
                     </Select>
                   </FormControl>
-                </Grid>
+                </div>
                 
-                <Grid item xs={12}>
-                  {(newMember.fatherId || newMember.motherId || newMember.spouseId) && (
-                    <Alert severity="info" sx={{ mt: 2 }}>
-                      <strong>Fontos információ:</strong><br/>
-                      • Szülők és házastárs is megadható egyszerre<br/>
-                      • Elhunyt személyeket is választhatsz szülőként<br/>
-                      • Házastárs kiválasztásával az új személy a párja mellé kerül<br/>
-                      • Szülők megadásával testvéri kapcsolatokat is létrehozhat a rendszer
-                    </Alert>
-                  )}
-                  
-                  {(!newMember.fatherId && !newMember.motherId && !newMember.spouseId) && (
-                    <Alert severity="info" sx={{ mt: 2 }}>
-                      <strong>Nincs kapcsolat megadva:</strong><br/>
-                      Ez a személy egyedülállóként kerül be a családfába. Később bármikor hozzáadhatsz hozzá kapcsolatokat a szerkesztés menüpontban.
-                    </Alert>
-                  )}
-                </Grid>
-              </Grid>
-            </div>
-          )}
-          
-          <Alert severity="info" sx={{ mt: 2 }}>
-            <strong>Használati tippek:</strong><br/>
-            • Minden tag dupla kattintással szerkeszthető<br/>
-            • Kattints a "Kapcsolatok" fülre a szülők és házastárs kiválasztásához<br/>
-            • Az új személy automatikusan a megfelelő helyre kerül a kapcsolatok alapján
-          </Alert>
+                <Alert severity="info" sx={{ mt: 2 }}>
+                  <strong>Fontos:</strong> A kapcsolatok kiválasztása nem kötelező. 
+                  Az új személy automatikusan elhelyezésre kerül a vásznon.
+                </Alert>
+              </div>
+            )}
+          </div>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setAddMemberDialog(false)}>Mégse</Button>
@@ -2035,10 +2071,14 @@ function App() {
         </DialogActions>
       </Dialog>
 
-      {/* Tag szerkesztése dialógus */}
-      <Dialog open={editMemberDialog} onClose={() => setEditMemberDialog(false)} maxWidth="md" fullWidth>
-        <DialogTitle>
-          <Edit /> Családtag szerkesztése
+      {/* Tag szerkesztése dialógus - Függőleges téglalap alakú */}
+      <Dialog open={editMemberDialog} onClose={() => setEditMemberDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ 
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          color: 'white',
+          padding: '16px 24px'
+        }}>
+          <Edit sx={{ mr: 1 }} /> Családtag szerkesztése
         </DialogTitle>
         <DialogContent>
           {editingMember && (
@@ -2050,8 +2090,8 @@ function App() {
                 </Tabs>
               </Box>
               
-              {activeTab === 'basic' && (
-                <div className="dialog-section">
+              <div style={verticalFormStyle}>
+                {activeTab === 'basic' && (
                   <Grid container spacing={2}>
                     <Grid item xs={12}>
                       <TextField
@@ -2060,27 +2100,22 @@ function App() {
                         label="Név *"
                         value={editingMember.name}
                         onChange={(e) => setEditingMember({...editingMember, name: e.target.value})}
+                        variant="outlined"
+                        sx={{ mb: 2 }}
                       />
                     </Grid>
                     
                     <Grid item xs={12}>
-                      <FormControl component="fieldset" fullWidth>
-                        <FormLabel component="legend">Nem</FormLabel>
-                        <ToggleButtonGroup
+                      <FormControl fullWidth sx={{ mb: 2 }}>
+                        <InputLabel>Nem</InputLabel>
+                        <Select
                           value={editingMember.gender}
-                          exclusive
-                          onChange={handleEditGenderChange}
-                          aria-label="nem"
-                          fullWidth
-                          sx={{ mt: 1 }}
+                          onChange={(e) => setEditingMember({...editingMember, gender: e.target.value})}
+                          label="Nem"
                         >
-                          <ToggleButton value="male" aria-label="férfi">
-                            <Male sx={{ mr: 1 }} /> Férfi
-                          </ToggleButton>
-                          <ToggleButton value="female" aria-label="nő">
-                            <Female sx={{ mr: 1 }} /> Nő
-                          </ToggleButton>
-                        </ToggleButtonGroup>
+                          <MenuItem value="male">Férfi</MenuItem>
+                          <MenuItem value="female">Nő</MenuItem>
+                        </Select>
                       </FormControl>
                     </Grid>
                     
@@ -2091,6 +2126,8 @@ function App() {
                           label="Leánykori név"
                           value={editingMember.maidenName}
                           onChange={(e) => setEditingMember({...editingMember, maidenName: e.target.value})}
+                          variant="outlined"
+                          sx={{ mb: 2 }}
                         />
                       </Grid>
                     )}
@@ -2101,6 +2138,8 @@ function App() {
                         label="Születési év *"
                         value={editingMember.birthYear}
                         onChange={(e) => setEditingMember({...editingMember, birthYear: e.target.value})}
+                        variant="outlined"
+                        sx={{ mb: 2 }}
                       />
                     </Grid>
                     
@@ -2114,7 +2153,7 @@ function App() {
                           />
                         }
                         label="Elhunyt"
-                        sx={{ mt: 1 }}
+                        sx={{ mb: 2, mt: 1 }}
                       />
                     </Grid>
                     
@@ -2125,75 +2164,97 @@ function App() {
                           label="Halálozási év"
                           value={editingMember.deathYear}
                           onChange={(e) => setEditingMember({...editingMember, deathYear: e.target.value})}
+                          variant="outlined"
+                          sx={{ mb: 2 }}
                         />
                       </Grid>
                     )}
-                    
-                    <Grid item xs={12}>
-                      <TextField
-                        fullWidth
-                        label="Részletek"
-                        multiline
-                        rows={2}
-                        value={editingMember.details}
-                        onChange={(e) => setEditingMember({...editingMember, details: e.target.value})}
-                      />
-                    </Grid>
                   </Grid>
-                </div>
-              )}
-              
-              {activeTab === 'connections' && members.length > 1 && (
-                <div className="dialog-section">
-                  <Grid container spacing={3}>
-                    <Grid item xs={12}>
-                      <h4>Szülők</h4>
-                      <Grid container spacing={2}>
-                        <Grid item xs={12} sm={6}>
-                          <FormControl fullWidth>
-                            <InputLabel>Apa</InputLabel>
-                            <Select
-                              value={editingMember.fatherId || ''}
-                              onChange={(e) => setEditingMember({...editingMember, fatherId: e.target.value})}
-                              label="Apa"
-                            >
-                              <MenuItem value="">Nincs megadva</MenuItem>
-                              {members
-                                .filter(m => m.gender === 'male' && m.id !== editingMember.id)
-                                .map(member => (
-                                  <MenuItem key={member.id} value={member.id}>
-                                    {member.name} {member.isDeceased ? `(${member.birthYear}†)` : `(${member.birthYear})`}
-                                  </MenuItem>
-                                ))}
-                            </Select>
-                          </FormControl>
-                        </Grid>
-                        
-                        <Grid item xs={12} sm={6}>
-                          <FormControl fullWidth>
-                            <InputLabel>Anya</InputLabel>
-                            <Select
-                              value={editingMember.motherId || ''}
-                              onChange={(e) => setEditingMember({...editingMember, motherId: e.target.value})}
-                              label="Anya"
-                            >
-                              <MenuItem value="">Nincs megadva</MenuItem>
-                              {members
-                                .filter(m => m.gender === 'female' && m.id !== editingMember.id)
-                                .map(member => (
-                                  <MenuItem key={member.id} value={member.id}>
-                                    {member.name} {member.isDeceased ? `(${member.birthYear}†)` : `(${member.birthYear})`}
-                                  </MenuItem>
-                                ))}
-                            </Select>
-                          </FormControl>
-                        </Grid>
-                      </Grid>
-                    </Grid>
+                )}
+                
+                {activeTab === 'connections' && members.length > 1 && (
+                  <div className="vertical-connections">
+                    <Typography variant="h6" sx={{ mb: 2, color: '#2c3e50' }}>
+                      Kapcsolatok szerkesztése
+                    </Typography>
                     
-                    <Grid item xs={12}>
-                      <Divider sx={{ my: 2 }} />
-                      <h4>Házastárs</h4>
+                    {/* Apa */}
+                    <div style={relationshipRowStyle}>
+                      <Typography variant="subtitle1" sx={{ mb: 1, color: '#3498db' }}>
+                        <Man sx={{ mr: 1, verticalAlign: 'middle' }} /> Apa
+                      </Typography>
+                      <FormControl fullWidth>
+                        <InputLabel>Apa</InputLabel>
+                        <Select
+                          value={editingMember.fatherId || ''}
+                          onChange={(e) => setEditingMember({...editingMember, fatherId: e.target.value})}
+                          label="Apa"
+                        >
+                          <MenuItem value="">Nincs megadva</MenuItem>
+                          {maleMembers
+                            .filter(m => m.id !== editingMember.id)
+                            .map(member => (
+                              <MenuItem key={member.id} value={member.id}>
+                                {member.name}
+                              </MenuItem>
+                            ))}
+                        </Select>
+                      </FormControl>
+                    </div>
+                    
+                    {/* Anya */}
+                    <div style={relationshipRowStyle}>
+                      <Typography variant="subtitle1" sx={{ mb: 1, color: '#e91e63' }}>
+                        <Woman sx={{ mr: 1, verticalAlign: 'middle' }} /> Anya
+                      </Typography>
+                      <FormControl fullWidth>
+                        <InputLabel>Anya</InputLabel>
+                        <Select
+                          value={editingMember.motherId || ''}
+                          onChange={(e) => setEditingMember({...editingMember, motherId: e.target.value})}
+                          label="Anya"
+                        >
+                          <MenuItem value="">Nincs megadva</MenuItem>
+                          {femaleMembers
+                            .filter(m => m.id !== editingMember.id)
+                            .map(member => (
+                              <MenuItem key={member.id} value={member.id}>
+                                {member.name}
+                              </MenuItem>
+                            ))}
+                        </Select>
+                      </FormControl>
+                    </div>
+                    
+                    {/* Testvér */}
+                    <div style={relationshipRowStyle}>
+                      <Typography variant="subtitle1" sx={{ mb: 1, color: '#2ecc71' }}>
+                        <Group sx={{ mr: 1, verticalAlign: 'middle' }} /> Testvér
+                      </Typography>
+                      <FormControl fullWidth>
+                        <InputLabel>Testvér</InputLabel>
+                        <Select
+                          value={editingMember.siblingId || ''}
+                          onChange={(e) => setEditingMember({...editingMember, siblingId: e.target.value})}
+                          label="Testvér"
+                        >
+                          <MenuItem value="">Nincs megadva</MenuItem>
+                          {members
+                            .filter(m => m.id !== editingMember.id)
+                            .map(member => (
+                              <MenuItem key={member.id} value={member.id}>
+                                {member.name}
+                              </MenuItem>
+                            ))}
+                        </Select>
+                      </FormControl>
+                    </div>
+                    
+                    {/* Házastárs */}
+                    <div style={relationshipRowStyle}>
+                      <Typography variant="subtitle1" sx={{ mb: 1, color: '#e74c3c' }}>
+                        <Favorite sx={{ mr: 1, verticalAlign: 'middle' }} /> Házastárs
+                      </Typography>
                       <FormControl fullWidth>
                         <InputLabel>Házastárs</InputLabel>
                         <Select
@@ -2205,32 +2266,20 @@ function App() {
                           {members
                             .filter(m => m.id !== editingMember.id)
                             .map(member => (
-                              <MenuItem 
-                                key={member.id} 
-                                value={member.id}
-                                sx={{ 
-                                  color: member.gender === 'male' ? '#3498db' : '#e91e63'
-                                }}
-                              >
-                                {member.name} {member.isDeceased ? `(${member.birthYear}†)` : `(${member.birthYear})`}
-                                {member.gender === 'male' ? ' 👨' : ' 👩'}
+                              <MenuItem key={member.id} value={member.id}>
+                                {member.name}
                               </MenuItem>
                             ))}
                         </Select>
                       </FormControl>
-                    </Grid>
+                    </div>
                     
-                    <Grid item xs={12}>
-                      <Alert severity="warning" sx={{ mt: 2 }}>
-                        <strong>Figyelem:</strong><br/>
-                        • Szülők módosítása testvéri kapcsolatokat is befolyásolhat<br/>
-                        • Házastárs megváltoztatása esetén a régi házassági kapcsolat törlődik<br/>
-                        • A módosítások mentése után frissülnek a kapcsolatok a vásznon
-                      </Alert>
-                    </Grid>
-                  </Grid>
-                </div>
-              )}
+                    <Alert severity="warning" sx={{ mt: 2 }}>
+                      <strong>Figyelem:</strong> A kapcsolatok módosítása frissíti a vásznon látható kapcsolatokat.
+                    </Alert>
+                  </div>
+                )}
+              </div>
             </>
           )}
         </DialogContent>
@@ -2254,7 +2303,15 @@ function App() {
       </Dialog>
 
       {/* Testvér dialógus */}
-      <Dialog open={siblingDialog.open} onClose={() => setSiblingDialog({ open: false, member1: null, member2: null, commonParents: [] })}>
+      <Dialog open={siblingDialog.open} onClose={() => setSiblingDialog({ 
+        open: false, 
+        member1: null, 
+        member2: null, 
+        commonParents: [],
+        fatherName: '',
+        motherName: '',
+        siblingName: ''
+      })}>
         <DialogTitle>
           <Group /> Testvéri kapcsolat felismerve!
         </DialogTitle>
@@ -2289,12 +2346,19 @@ function App() {
             
             <Alert severity="info" sx={{ mt: 2, mb: 2 }}>
               A testvéri kapcsolat zöld, vastag szaggatott vonallal jelenik meg a vásznon.
-              Ez automatikusan jelzi, hogy a két személynek közös szülei vannak.
             </Alert>
           </div>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setSiblingDialog({ open: false, member1: null, member2: null, commonParents: [] })}>
+          <Button onClick={() => setSiblingDialog({ 
+            open: false, 
+            member1: null, 
+            member2: null, 
+            commonParents: [],
+            fatherName: '',
+            motherName: '',
+            siblingName: ''
+          })}>
             Nem
           </Button>
           <Button onClick={handleCreateSiblingConnection} variant="contained" color="success">
@@ -2309,57 +2373,35 @@ function App() {
         <DialogContent>
           <div className="info-content">
             <div className="info-section">
-              <h3>✨ Új funkciók</h3>
+              <h3>✨ Főbb információk</h3>
               <ul>
+                <li><strong>Tiszta nézet:</strong> Csak név, leánykori név és születési/halálozási év jelenik meg</li>
+                <li><strong>Kapcsolatok:</strong> Minden kapcsolatot a vonalak reprezentálnak</li>
                 <li><strong>Arányos zoom:</strong> A tagok mérete arányosan változik a zoom szinttel</li>
-                <li><strong>Több tag kijelölése:</strong> Shift + bal klikk vagy Shift + húzás téglalappal</li>
-                <li><strong>Több tag egyidejű mozgatása:</strong> Kijelölt tagok együtt mozgathatók</li>
-                <li><strong>Lassított panoráma:</strong> Jobb egérgomb + húzás most sokkal lassabb</li>
-              </ul>
-            </div>
-            
-            <div className="info-section">
-              <h3>🆕 Kijelölés rendszer</h3>
-              <ul>
-                <li><strong>Shift + bal klikk:</strong> Több tag kijelölése (hozzáadás/eltávolítás)</li>
-                <li><strong>Shift + húzás:</strong> Téglalap kijelölés</li>
-                <li><strong>Kijelölt tagok mozgatása:</strong> Húzd bármelyik kijelölt tagot</li>
-                <li><strong>Kijelölés törlése:</strong> Kattints a vászon üres részére</li>
-                <li><strong>Kijelölt tagok száma:</strong> Megjelenik a felső sávban és az oldalsávban</li>
+                <li><strong>Ütközésmentesség:</strong> A tagok automatikusan elkerülik egymást</li>
+                <li><strong>Függőleges adatlapok:</strong> Modern, vertikális elrendezés</li>
               </ul>
             </div>
             
             <div className="info-section">
               <h3>🎮 Alapvető vezérlés</h3>
               <ul>
-                <li><strong>Húzd a családtagokat</strong> az egérrel a mozgatáshoz</li>
-                <li><strong>Kattints duplán</strong> egy családtagra a szerkesztéshez</li>
-                <li><strong>Egérgörgő</strong> az arányos zoomhoz</li>
-                <li><strong>Jobb egérgomb + húzás</strong> a LASSÚ panorámázáshoz</li>
-                <li><strong>Billentyűzet nyilak</strong> a vászon mozgatásához</li>
-                <li><strong>➕ Gomb:</strong> Új tag hozzáadása</li>
-                <li><strong>ℹ️ Gomb:</strong> Használati útmutató</li>
+                <li><strong>➕ Jobb alsó gomb:</strong> Új tag hozzáadása</li>
+                <li><strong>ℹ️ Alsó gomb:</strong> Használati útmutató</li>
+                <li><strong>Húzd a családtagokat:</strong> Mozgathatók az egérrel</li>
+                <li><strong>Dupla kattintás:</strong> Tag szerkesztése</li>
+                <li><strong>Egérgörgő:</strong> Arányos zoom</li>
+                <li><strong>Jobb egérgomb + húzás:</strong> Panorámázás</li>
               </ul>
             </div>
             
             <div className="info-section">
-              <h3>👨‍👩‍👧‍👦 Szülők és Házastársak</h3>
+              <h3>👨‍👩‍👧‍👦 Kapcsolatok</h3>
               <ul>
-                <li><strong>Szülők:</strong> Mind elhunyt, mind élő személyeket kiválaszthatsz</li>
-                <li><strong>Házastárs:</strong> Csak azok a személyek látszanak, akiknek nincs még házastársa</li>
-                <li><strong>Mindkettő egyszerre:</strong> Most már megadhatod a szülőket és a házastársat is</li>
-                <li><strong>Automatikus elhelyezés:</strong> Az új személy automatikusan a megfelelő helyre kerül</li>
-                <li><strong>Testvérdetektálás:</strong> Közös szülők esetén a rendszer felajánlja a testvéri kapcsolatot</li>
-              </ul>
-            </div>
-            
-            <div className="info-section">
-              <h3>🔗 Kapcsolatok</h3>
-              <ul>
-                <li><span style={{color: '#e74c3c'}}>● Piros vonal:</span> Házasság</li>
-                <li><span style={{color: '#3498db'}}>● Kék szaggatott vonal:</span> Szülői kapcsolat</li>
-                <li><span style={{color: '#2ecc71'}}>● Zöld vastag szaggatott vonal:</span> Testvéri kapcsolat</li>
-                <li><strong>Intelligens rendszer:</strong> Automatikus kapcsolatfelismerés és -javaslat</li>
+                <li><strong>Apa/Anya:</strong> Szülők kiválasztása</li>
+                <li><strong>Testvér:</strong> Testvéri kapcsolat létrehozása</li>
+                <li><strong>Házastárs:</strong> Házassági kapcsolat létrehozása</li>
+                <li><strong>Automatikus elhelyezés:</strong> Az új személy a megfelelő helyre kerül</li>
               </ul>
             </div>
           </div>

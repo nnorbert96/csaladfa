@@ -1,4 +1,4 @@
-/* App.css - Teljes családfa alkalmazás stíluslap */
+/* App.css - Teljes családfa alkalmazás stíluslap - JAVÍTOTT */
 
 /* Reset és alapbeállítások */
 * {
@@ -23,6 +23,7 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 /* Felső sáv */
@@ -162,7 +163,7 @@ body {
   z-index: 3;
 }
 
-/* Családtag kártyák */
+/* Családtag kártyák - ARÁNYOS MÉRETEZÉS */
 .family-member {
   position: absolute;
   background: rgba(255, 255, 255, 0.95);
@@ -172,17 +173,23 @@ body {
   cursor: move;
   z-index: 100;
   transition: all 0.3s ease;
-  min-width: 130px;
-  min-height: 110px;
+  min-width: 150px;
+  min-height: 120px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 14px;
+  padding: 16px;
   transform: translate(-50%, -50%);
   text-align: center;
   backdrop-filter: blur(10px);
   box-sizing: border-box;
   user-select: none;
+  transform-origin: center center;
+}
+
+/* Tag méret arányos a zoom szinttel */
+.family-member.scaled {
+  transform: translate(-50%, -50%) scale(var(--scale, 1));
 }
 
 .family-member.male {
@@ -432,55 +439,25 @@ body {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
-/* Jobb alsó sarok gombok */
-.bottom-right-buttons {
+/* Floating action buttons - Jobb alsó sarok */
+.floating-buttons-container {
   position: fixed;
   bottom: 30px;
   right: 30px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 15px;
+  gap: 16px;
   z-index: 1000;
 }
 
-.add-button-container {
-  position: relative;
-}
-
-.info-button-container {
-  position: relative;
-}
-
 .floating-button {
-  width: 56px;
-  height: 56px;
-  border-radius: 28px !important;
+  width: 56px !important;
+  height: 56px !important;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25) !important;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
   position: relative;
   overflow: hidden;
-}
-
-.floating-button::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(45deg, transparent 30%, rgba(255, 255, 255, 0.2) 50%, transparent 70%);
-  transform: translateX(-100%);
-}
-
-.floating-button:hover::after {
-  animation: shimmer 1s infinite;
-}
-
-@keyframes shimmer {
-  100% {
-    transform: translateX(100%);
-  }
 }
 
 .floating-button:hover {
@@ -494,285 +471,57 @@ body {
 
 .add-button {
   background: linear-gradient(135deg, #2ecc71, #27ae60) !important;
+  animation: pulse-button 2s infinite !important;
 }
 
 .info-button {
   background: linear-gradient(135deg, #3498db, #2980b9) !important;
 }
 
-.button-tooltip {
-  font-size: 0.85rem !important;
-  font-weight: 500 !important;
-  background: rgba(44, 62, 80, 0.95) !important;
-  backdrop-filter: blur(10px) !important;
-  padding: 8px 12px !important;
-  border-radius: 8px !important;
+@keyframes pulse-button {
+  0% { box-shadow: 0 6px 20px rgba(46, 204, 113, 0.4); }
+  70% { box-shadow: 0 6px 20px rgba(46, 204, 113, 0.4), 0 0 0 15px rgba(46, 204, 113, 0); }
+  100% { box-shadow: 0 6px 20px rgba(46, 204, 113, 0.4); }
 }
 
-/* Modal/dialog stílusok - FÜGGŐLEGES ELRENDEZÉS */
-.vertical-form-container {
+/* Függőleges form stílusok */
+.vertical-form {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 20px;
-  max-height: 85vh;
-  overflow-y: auto;
-}
-
-.form-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 5px;
-  padding-bottom: 15px;
-  border-bottom: 2px solid rgba(52, 152, 219, 0.2);
-}
-
-.form-header h2 {
-  margin: 0;
-  font-size: 1.5rem;
-  color: #2c3e50;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.form-content {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.form-section {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(245, 247, 250, 0.9));
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
-  border: 1px solid rgba(52, 152, 219, 0.15);
-}
-
-.form-section h3 {
-  margin: 0 0 15px 0;
-  font-size: 1.1rem;
-  color: #3498db;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid rgba(52, 152, 219, 0.2);
-}
-
-.form-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 16px;
-}
-
-@media (min-width: 600px) {
-  .form-grid {
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-  }
-  
-  .form-grid.full-width {
-    grid-template-columns: 1fr;
-  }
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.form-label {
-  font-weight: 600;
-  color: #2c3e50;
-  font-size: 0.9rem;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.form-label .required {
-  color: #e74c3c;
-  font-size: 1.2em;
-}
-
-.form-input {
   width: 100%;
-  padding: 12px 16px;
-  border: 2px solid rgba(52, 152, 219, 0.3);
-  border-radius: 8px;
-  font-size: 0.95rem;
-  transition: all 0.3s ease;
-  background: white;
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: #3498db;
-  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
-}
-
-.form-input:hover {
-  border-color: rgba(52, 152, 219, 0.5);
-}
-
-.form-textarea {
-  min-height: 100px;
-  resize: vertical;
-  line-height: 1.5;
-}
-
-.form-select {
-  cursor: pointer;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%233498db' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 16px center;
-  background-size: 16px;
-  padding-right: 40px;
-}
-
-.checkbox-group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  background: rgba(52, 152, 219, 0.05);
-  border-radius: 8px;
-  border: 1px solid rgba(52, 152, 219, 0.2);
-}
-
-.checkbox-label {
-  font-weight: 500;
-  color: #2c3e50;
-  cursor: pointer;
-  flex: 1;
-}
-
-.form-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-  padding-top: 20px;
-  margin-top: 10px;
-  border-top: 1px solid rgba(0, 0, 0, 0.1);
-}
-
-.cancel-button {
-  background: linear-gradient(135deg, #95a5a6, #7f8c8d) !important;
-  color: white !important;
-}
-
-.submit-button {
-  background: linear-gradient(135deg, #2ecc71, #27ae60) !important;
-  color: white !important;
-}
-
-.form-error {
-  color: #e74c3c;
-  font-size: 0.85rem;
-  margin-top: 5px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.form-help-text {
-  color: #7f8c8d;
-  font-size: 0.85rem;
-  margin-top: 5px;
-  font-style: italic;
-}
-
-/* Tag selector in forms */
-.member-selector {
-  max-height: 200px;
+  max-height: 70vh;
   overflow-y: auto;
-  border: 1px solid rgba(52, 152, 219, 0.2);
-  border-radius: 8px;
   padding: 8px;
-  background: white;
 }
 
-.member-option {
-  padding: 10px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
+.vertical-connections {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 4px;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
 }
 
-.member-option:hover {
-  background: rgba(52, 152, 219, 0.1);
+/* Kapcsolat sorok - függőleges elrendezés */
+.relationship-row {
+  margin-bottom: 16px;
+  padding: 12px;
+  border-radius: 8px;
+  background-color: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  transition: all 0.3s ease;
 }
 
-.member-option.selected {
-  background: rgba(52, 152, 219, 0.15);
-  border-left: 3px solid #3498db;
+.relationship-row:hover {
+  background-color: #f0f0f0;
+  border-color: #3498db;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.member-option-gender {
-  font-size: 1.1em;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: rgba(52, 152, 219, 0.1);
-}
+/* === HIÁNYZÓ CSS OSZTÁLYOK - Hozzáadva === */
 
-.member-option.male .member-option-gender {
-  color: #3498db;
-  background: rgba(52, 152, 219, 0.15);
-}
-
-.member-option.female .member-option-gender {
-  color: #e74c3c;
-  background: rgba(231, 76, 60, 0.15);
-}
-
-.member-option-name {
-  font-weight: 500;
-  color: #2c3e50;
-}
-
-.member-option-years {
-  font-size: 0.85em;
-  color: #7f8c8d;
-  margin-left: auto;
-}
-
-/* Dialog/Modal stílusok */
-.MuiDialog-paper {
-  border-radius: 16px !important;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3) !important;
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important;
-  overflow: hidden;
-}
-
-.MuiDialogTitle-root {
-  background: linear-gradient(135deg, rgba(52, 152, 219, 0.1), rgba(46, 204, 113, 0.1));
-  padding: 24px 24px 10px 24px !important;
-}
-
-.MuiDialogContent-root {
-  padding: 20px 24px !important;
-}
-
-.MuiDialogActions-root {
-  padding: 16px 24px 24px 24px !important;
-  background: rgba(245, 247, 250, 0.8);
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
-}
-
-/* Sidebar - ha még szükséges */
+/* Sidebar styles */
 .sidebar {
   background: rgba(44, 62, 80, 0.95);
   color: white;
@@ -785,6 +534,14 @@ body {
   box-shadow: -5px 0 30px rgba(0, 0, 0, 0.2);
 }
 
+/* Sidebar content - HIÁNYZOTT */
+.sidebar-content {
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+}
+
+/* Sidebar header - MEGJAVÍTVA */
 .sidebar-header {
   display: flex;
   justify-content: space-between;
@@ -826,7 +583,173 @@ body {
   font-weight: 600;
 }
 
-/* Reszponzív beállítások */
+.sidebar-section p {
+  margin: 5px 0;
+  font-size: 0.95rem;
+  color: #ecf0f1;
+}
+
+/* Zoom controls in sidebar - HIÁNYZOTT */
+.zoom-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 15px 0;
+}
+
+.zoom-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.zoom-display span {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #2ecc71;
+}
+
+.zoom-factor {
+  font-size: 0.8rem;
+  color: #bdc3c7;
+}
+
+.zoom-slider {
+  margin: 20px 0;
+}
+
+.view-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+/* Keyboard controls - HIÁNYZOTT */
+.keyboard-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 15px;
+}
+
+.keyboard-row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.keyboard-info {
+  font-size: 0.85rem;
+  color: #bdc3c7;
+  margin: 3px 0;
+}
+
+/* Stats - HIÁNYZOTT */
+.stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+.stat-item:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateX(4px);
+}
+
+.stat-label {
+  color: #bdc3c7;
+}
+
+.stat-value {
+  color: white;
+  font-weight: 600;
+}
+
+/* Controls list - HIÁNYZOTT */
+.controls-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.control-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+}
+
+.control-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateX(4px);
+}
+
+/* Dialog styles */
+.dialog-section {
+  margin-bottom: 20px;
+}
+
+.sibling-dialog-content {
+  padding: 10px 0;
+}
+
+.info-content {
+  padding: 10px 0;
+}
+
+.info-section {
+  margin-bottom: 25px;
+}
+
+.info-section h3 {
+  color: #2c3e50;
+  margin-bottom: 10px;
+  padding-bottom: 5px;
+  border-bottom: 2px solid #3498db;
+}
+
+.info-section ul {
+  padding-left: 20px;
+  margin: 10px 0;
+}
+
+.info-section li {
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+/* Ütközésmentes animáció */
+@keyframes avoid-collision {
+  0% { 
+    transform: translate(var(--tx, 0), var(--ty, 0)) scale(var(--scale, 1)); 
+  }
+  100% { 
+    transform: translate(0, 0) scale(var(--scale, 1)); 
+  }
+}
+
+.family-member.avoiding {
+  animation: avoid-collision 0.5s ease forwards;
+}
+
+/* Responsive styles */
 @media (max-width: 768px) {
   .top-bar {
     padding: 0 15px;
@@ -842,23 +765,29 @@ body {
     display: none;
   }
   
-  .bottom-right-buttons {
+  .floating-buttons-container {
     bottom: 20px;
     right: 20px;
+    gap: 12px;
   }
   
   .floating-button {
-    width: 52px;
-    height: 52px;
+    width: 52px !important;
+    height: 52px !important;
   }
   
-  .vertical-form-container {
-    padding: 15px;
-    max-height: 80vh;
+  .family-member {
+    min-width: 140px;
+    min-height: 110px;
+    padding: 12px;
   }
   
-  .form-section {
-    padding: 16px;
+  .member-name {
+    font-size: 1em;
+  }
+  
+  .sidebar {
+    width: 280px;
   }
   
   .MuiDialog-paper {
@@ -870,8 +799,8 @@ body {
 
 @media (max-width: 480px) {
   .family-member {
-    min-width: 110px;
-    min-height: 95px;
+    min-width: 120px;
+    min-height: 100px;
     padding: 10px;
   }
   
@@ -879,23 +808,26 @@ body {
     font-size: 0.95em;
   }
   
-  .bottom-right-buttons {
+  .floating-buttons-container {
     bottom: 15px;
     right: 15px;
-    gap: 12px;
+    gap: 10px;
   }
   
   .floating-button {
-    width: 48px;
-    height: 48px;
+    width: 48px !important;
+    height: 48px !important;
   }
   
-  .form-grid {
-    grid-template-columns: 1fr;
+  .selection-count {
+    top: 70px;
+    right: 10px;
+    padding: 6px 12px;
+    font-size: 0.9rem;
   }
 }
 
-/* Animációk */
+/* Animations */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -907,54 +839,94 @@ body {
   }
 }
 
-.vertical-form-container {
-  animation: fadeIn 0.3s ease-out;
-}
-
 .form-section {
   animation: fadeIn 0.4s ease-out;
 }
 
-.form-section:nth-child(2) {
-  animation-delay: 0.1s;
+/* Scrollbar styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
 
-.form-section:nth-child(3) {
-  animation-delay: 0.2s;
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
 }
 
-/* Gomb hover effektek */
-.MuiButton-contained {
-  position: relative;
-  overflow: hidden;
-  transition: all 0.3s ease !important;
+::-webkit-scrollbar-thumb {
+  background: rgba(52, 152, 219, 0.5);
+  border-radius: 4px;
 }
 
-.MuiButton-contained::after {
-  content: '';
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(52, 152, 219, 0.7);
+}
+
+/* Custom MUI overrides */
+.MuiDialogTitle-root {
+  padding: 16px 24px !important;
+}
+
+.MuiDialogContent-root {
+  padding: 20px 24px !important;
+}
+
+.MuiDialogActions-root {
+  padding: 16px 24px !important;
+}
+
+.MuiTextField-root {
+  margin-bottom: 16px !important;
+}
+
+.MuiFormControl-root {
+  margin-bottom: 16px !important;
+}
+
+/* Smooth transitions */
+.family-member, 
+.floating-button,
+.relationship-row {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Selection rectangle */
+.selection-rectangle {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 5px;
-  height: 5px;
-  background: rgba(255, 255, 255, 0.5);
-  opacity: 0;
-  border-radius: 100%;
-  transform: scale(1, 1) translate(-50%);
-  transform-origin: 50% 50%;
+  border: 2px dashed #3498db;
+  background-color: rgba(52, 152, 219, 0.1);
+  z-index: 999;
+  pointer-events: none;
 }
 
-.MuiButton-contained:focus:not(:active)::after {
-  animation: ripple 1s ease-out;
+/* Performance optimizations */
+.canvas-background,
+.connections-canvas,
+.selection-canvas {
+  will-change: transform;
 }
 
-@keyframes ripple {
-  0% {
-    transform: scale(0, 0);
-    opacity: 0.5;
+/* Print styles */
+@media print {
+  .floating-buttons-container,
+  .top-bar,
+  .sidebar {
+    display: none !important;
   }
-  100% {
-    transform: scale(20, 20);
-    opacity: 0;
+  
+  .main-content {
+    position: static !important;
+    height: auto !important;
+  }
+  
+  .family-member {
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+    transform: none !important;
+    margin: 10px;
+    display: inline-block;
+    page-break-inside: avoid;
   }
 }
